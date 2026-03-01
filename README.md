@@ -5,6 +5,8 @@ annotation syntax for tracking edits in prose documents. Provides keybindings
 to insert CriticMarkup annotations and extmark-based syntax highlighting with
 concealment in markdown buffers.
 
+Supports multi-line tags that span across line breaks.
+
 ## CriticMarkup syntax
 
 | Operation    | Syntax                   |
@@ -23,11 +25,21 @@ Operations can be combined with inline comments:
 
 ## Installation
 
-### lazy.nvim
+### [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
-  dir = '~/projects/critic.nvim',  -- or a GitHub URL
+  'AlexBurdu/critic.nvim',
+  ft = { 'markdown' },
+  opts = {},
+}
+```
+
+With custom keybinding hints for which-key:
+
+```lua
+{
+  'AlexBurdu/critic.nvim',
   ft = { 'markdown' },
   keys = {
     { '<Leader>cc', desc = 'CriticMarkup: comment' },
@@ -40,17 +52,15 @@ Operations can be combined with inline comments:
     { '<Leader>cs', desc = 'CriticMarkup: substitute' },
     { '<Leader>cS', desc = 'CriticMarkup: substitute + comment' },
   },
-  config = function()
-    require('critic').setup()
-  end,
+  opts = {},
 }
 ```
 
-### packer.nvim
+### [packer.nvim](https://github.com/wbthomason/packer.nvim)
 
 ```lua
 use {
-  '~/projects/critic.nvim',
+  'AlexBurdu/critic.nvim',
   config = function()
     require('critic').setup()
   end,
@@ -61,38 +71,21 @@ use {
 
 Clone the repo and add it to your runtimepath:
 
+```bash
+git clone https://github.com/AlexBurdu/critic.nvim ~/.local/share/nvim/lazy/critic.nvim
+```
+
 ```lua
-vim.opt.rtp:prepend('~/projects/critic.nvim')
+vim.opt.rtp:prepend('~/.local/share/nvim/lazy/critic.nvim')
 require('critic').setup()
 ```
 
-## Configuration
+## Usage
 
-```lua
-require('critic').setup({
-  prefix = '<Leader>c',           -- keybinding prefix (default)
-  highlight = true,               -- enable syntax highlighting (default)
-  conceal = true,                 -- conceal delimiters, show clean text (default)
-  comment_icon = '💬',            -- icon for virtual comment lines (default)
-  filetypes = { 'markdown' },    -- filetypes to highlight (default)
-  keys = {                        -- keybinding suffixes (appended to prefix)
-    comment = 'c',                -- comment
-    highlight = 'h',              -- highlight
-    insert = 'i',                 -- insert
-    delete = 'd',                 -- delete
-    substitute = 's',             -- substitute
-    highlight_comment = 'H',      -- highlight + comment
-    insert_comment = 'I',         -- insert + comment
-    delete_comment = 'D',         -- delete + comment
-    substitute_comment = 'S',     -- substitute + comment
-  },
-})
-```
+### Keybindings
 
-## Keybindings
-
-All keybindings use the configured prefix (default `<Leader>c`) plus
-the key suffix. Both normal and visual mode are supported.
+All keybindings use the configured prefix (default `<Leader>c`) and work in
+both normal and visual mode.
 
 | Key          | Mode   | Action                            |
 |--------------|--------|-----------------------------------|
@@ -106,36 +99,21 @@ the key suffix. Both normal and visual mode are supported.
 | `{prefix}s`  | n / v | Substitute                         |
 | `{prefix}S`  | n / v | Substitute + comment               |
 
-In normal mode, operations act on the character under the cursor. On
-empty lines, they insert empty markers and enter insert mode.
+**Normal mode**: operations act on the character under the cursor. On empty
+lines, they insert empty markers and enter insert mode.
 
-In visual mode, operations wrap the selected text.
+**Visual mode**: operations wrap the selected text.
 
-## Conceal
+### Conceal mode
 
-When `conceal = true` (default), CriticMarkup delimiters are hidden and
-only the content is shown with highlighting. Comments are fully concealed
-inline and rendered as virtual lines below the annotated text with the
-configured `comment_icon`.
+When `conceal = true` (default), CriticMarkup delimiters are hidden and only
+the content is shown with highlighting. Comments are fully concealed inline
+and rendered as virtual lines below the annotated text with the configured
+`comment_icon`.
 
 Set `conceal = false` to show raw markup with full-range highlighting.
 
-## Highlight groups
-
-Each group derives its colors from standard neovim highlight groups, making
-them portable across colorschemes. All are defined with `default = true`,
-so you can override them in your colorscheme or after `setup()`:
-
-| Group            | Foreground from   | Background from | Attributes    |
-|------------------|-------------------|-----------------|---------------|
-| `CriticAdd`      | `DiagnosticOk`    | `DiffAdd`       | bold          |
-| `CriticDel`      | `DiagnosticError` | `DiffDelete`    | strikethrough |
-| `CriticHighlight`| `DiagnosticWarn`  | `DiffChange`    |               |
-| `CriticComment`  | `DiagnosticInfo`  | `DiffChange`    | italic        |
-| `CriticSubFrom`  | `DiagnosticError` | `DiffDelete`    | strikethrough |
-| `CriticSubTo`    | `DiagnosticOk`    | `DiffAdd`       | bold          |
-
-## Examples
+### Examples
 
 Mark text for insertion:
 ```
@@ -157,7 +135,78 @@ Highlight with a comment:
 This is {== important ==}{>> Why is this important? <<} text.
 ```
 
-Delete with a reason:
+Multi-line tags are supported:
 ```
-This is {-- redundant --}{>> Already covered in section 2 <<} text.
+{++ This addition
+spans multiple lines ++}
 ```
+
+## Configuration
+
+All options with their defaults:
+
+```lua
+require('critic').setup({
+  -- Keybinding prefix
+  prefix = '<Leader>c',
+
+  -- Enable extmark-based syntax highlighting
+  highlight = true,
+
+  -- Conceal delimiters and show clean text
+  -- When false, raw markup is shown with full-range highlighting
+  conceal = true,
+
+  -- Icon shown before virtual comment lines (when conceal = true)
+  comment_icon = '💬',
+
+  -- Filetypes to enable highlighting for
+  filetypes = { 'markdown' },
+
+  -- Keybinding suffixes (appended to prefix)
+  keys = {
+    comment              = 'c',
+    highlight            = 'h',
+    insert               = 'i',
+    delete               = 'd',
+    substitute           = 's',
+    highlight_comment    = 'H',
+    insert_comment       = 'I',
+    delete_comment       = 'D',
+    substitute_comment   = 'S',
+  },
+})
+```
+
+### Disabling keybindings
+
+To use highlighting without any keybindings, set `prefix = false`:
+
+```lua
+require('critic').setup({ prefix = false })
+```
+
+### Custom highlight groups
+
+Each group derives its colors from standard Neovim highlight groups, making
+them portable across colorschemes. All are defined with `default = true`,
+so you can override them after `setup()` or in your colorscheme:
+
+| Group              | Foreground from   | Background from | Attributes    |
+|--------------------|-------------------|-----------------|---------------|
+| `CriticAdd`        | `DiagnosticOk`    | `DiffAdd`       | bold          |
+| `CriticDel`        | `DiagnosticError` | `DiffDelete`    | strikethrough |
+| `CriticHighlight`  | `DiagnosticWarn`  | `DiffChange`    |               |
+| `CriticComment`    | `DiagnosticInfo`  | `DiffChange`    | italic        |
+| `CriticSubFrom`    | `DiagnosticError` | `DiffDelete`    | strikethrough |
+| `CriticSubTo`      | `DiagnosticOk`    | `DiffAdd`       | bold          |
+
+Override example:
+
+```lua
+vim.api.nvim_set_hl(0, 'CriticAdd', { fg = '#00ff00', bg = '#002200', bold = true })
+```
+
+## License
+
+Apache 2.0
