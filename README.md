@@ -207,6 +207,12 @@ Override example:
 vim.api.nvim_set_hl(0, 'CriticAdd', { fg = '#00ff00', bg = '#002200', bold = true })
 ```
 
+## Tests
+
+```bash
+nvim --headless -u NONE -l tests/highlight_spec.lua
+```
+
 ## License
 
 Apache 2.0
