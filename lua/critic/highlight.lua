@@ -246,8 +246,6 @@ local function highlight_buf(buf, config)
     if not ms then break end
 
     if conceal then
-      set_conceal(ms, me + 1)
-
       -- Find nearest preceding content region for alignment and color
       local anchor_byte = 0
       local anchor_hl = 'CriticComment'
@@ -258,21 +256,53 @@ local function highlight_buf(buf, config)
         end
       end
 
-      local attach_row = to_pos(me)
-      local indent = 0
-      if anchor_byte > 0 then
-        local ar, ac = to_pos(anchor_byte)
-        indent = disp_col(ar, ac)
+      -- Standalone comment alone on its line: show inline instead of
+      -- as a virtual line below.
+      local comment_sr, comment_sc = to_pos(ms)
+      local comment_er = to_pos(me)
+      local alone_on_line = false
+      if anchor_byte == 0 and comment_sr == comment_er then
+        local line = lines[comment_sr + 1]
+        local before = comment_sc > 0 and line:sub(1, comment_sc) or ''
+        local after_col = comment_sc + (me - ms + 1)
+        local after = after_col <= #line and line:sub(after_col + 1) or ''
+        alone_on_line = vim.trim(before) == '' and vim.trim(after) == ''
       end
 
-      local flat = vim.trim(cap:gsub('\n', ' '))
-      local padding = string.rep(' ', math.max(0, indent))
-      local icon_prefix = config.comment_icon .. ' '
-      table.insert(virt_comments, {
-        row = attach_row,
-        col = indent,
-        lines = wrap_comment(padding, icon_prefix, flat, anchor_hl, text_width),
-      })
+      if alone_on_line then
+        -- Conceal {>> and replace with the comment icon
+        local open_end = ms + 3
+        local osr, osc = to_pos(ms)
+        local oer, oec = to_pos(open_end)
+        vim.api.nvim_buf_set_extmark(buf, ns, osr, osc, {
+          end_row = oer, end_col = oec, conceal = '',
+          virt_text = { { config.comment_icon, anchor_hl } },
+          virt_text_pos = 'inline',
+        })
+        track_conceal(osr, osc, oer, oec)
+        -- Conceal <<}
+        set_conceal(me - 2, me + 1)
+        -- Highlight comment content
+        set_hl(open_end, me - 2, anchor_hl)
+      else
+        set_conceal(ms, me + 1)
+
+        local attach_row = to_pos(me)
+        local indent = 0
+        if anchor_byte > 0 then
+          local ar, ac = to_pos(anchor_byte)
+          indent = disp_col(ar, ac)
+        end
+
+        local flat = vim.trim(cap:gsub('\n', ' '))
+        local padding = string.rep(' ', math.max(0, indent))
+        local icon_prefix = config.comment_icon .. ' '
+        table.insert(virt_comments, {
+          row = attach_row,
+          col = indent,
+          lines = wrap_comment(padding, icon_prefix, flat, anchor_hl, text_width),
+        })
+      end
     else
       set_hl(ms, me + 1, 'CriticComment')
     end

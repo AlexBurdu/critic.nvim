@@ -306,10 +306,32 @@ test('comment after substitution uses CriticSubComment', function()
 end)
 
 test('standalone comment uses CriticComment', function()
-  local buf, marks = highlight({ '{>> standalone <<}' }, CONCEAL)
+  -- Standalone comment NOT alone on its line → virtual line
+  local buf, marks = highlight({ 'word {>> standalone <<}' }, CONCEAL)
   local v = find_virt(marks)
   assert(v, 'virtual line not found')
   assert_eq(v[4].virt_lines[1][1][2], 'CriticComment', 'hl_group')
+  cleanup(buf)
+end)
+
+test('standalone comment alone on line renders inline', function()
+  local buf, marks = highlight({ '{>> standalone <<}' }, CONCEAL)
+  -- Should NOT have virtual lines
+  local v = find_virt(marks)
+  assert(not v, 'should not have virtual line for inline comment')
+  -- Should have CriticComment highlight on the content
+  local m = find_hl(marks, 'CriticComment')
+  assert(m, 'CriticComment highlight not found')
+  -- Content " standalone " starts at col 3 (after {>>), ends at col 15 (before <<})
+  assert_eq(m[3], 3, 'sc') assert_eq(m[4].end_col, 15, 'ec')
+  -- Should have 2 conceal marks ({>> and <<})
+  assert_eq(count_conceal(marks), 2, 'conceal count')
+  -- Should have inline virt_text with the icon
+  local found_icon = false
+  for _, em in ipairs(marks) do
+    if em[4].virt_text then found_icon = true end
+  end
+  assert(found_icon, 'inline icon virt_text not found')
   cleanup(buf)
 end)
 
@@ -335,8 +357,9 @@ end)
 test('long comment wraps to multiple virtual lines', function()
   -- Force a narrow width by using a config-level test
   -- The headless nvim has vim.o.columns typically 80
+  -- Use a preceding word so the comment is not alone on its line
   local long = string.rep('word ', 30)  -- 150 chars
-  local buf, marks = highlight({ '{>> ' .. long .. '<<}' }, CONCEAL)
+  local buf, marks = highlight({ 'text {>> ' .. long .. '<<}' }, CONCEAL)
   local v = find_virt(marks)
   assert(v, 'virtual line not found')
   assert(#v[4].virt_lines > 1, 'expected multiple virt lines, got ' .. #v[4].virt_lines)
