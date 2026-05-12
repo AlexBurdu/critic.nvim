@@ -12,17 +12,38 @@ local function wrap_char(prefix, suffix)
 end
 
 local function wrap_selection(prefix, suffix, cursor_from_end)
-  vim.cmd('normal! "zy')
-  local text = vim.fn.getreg('z')
-  local _, sr, sc, _ = unpack(vim.fn.getpos("'<"))
-  local _, er, ec, _ = unpack(vim.fn.getpos("'>"))
-  local end_line = vim.api.nvim_buf_get_lines(0, er - 1, er, true)[1]
-  ec = math.min(ec, #end_line)
-  text = text:gsub('\n$', '')
-  local lines = vim.split(text, '\n', { plain = true })
+  -- Capture selection bounds while still in visual mode. Reading `'<`/`'>`
+  -- doesn't work here — those marks are only updated when visual mode exits,
+  -- and `normal! "zy` to force-set them clobbers the user's z register and
+  -- silently no-ops if the callback already ran in normal mode.
+  local mode = vim.fn.mode()
+  local vpos = vim.fn.getpos('v')
+  local cpos = vim.fn.getpos('.')
+  if mode:match('^[vVsS]') or mode == '\22' or mode == '\19' then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+  end
+
+  local start_pos, end_pos = vpos, cpos
+  if vpos[2] > cpos[2] or (vpos[2] == cpos[2] and vpos[3] > cpos[3]) then
+    start_pos, end_pos = cpos, vpos
+  end
+  local sr, sc = start_pos[2], start_pos[3]
+  local er, ec = end_pos[2], end_pos[3]
+
+  if mode == 'V' then
+    sc = 1
+    local end_line = vim.api.nvim_buf_get_lines(0, er - 1, er, true)[1]
+    ec = #end_line
+  else
+    local end_line = vim.api.nvim_buf_get_lines(0, er - 1, er, true)[1]
+    ec = math.min(ec, #end_line)
+  end
+
+  local lines = vim.api.nvim_buf_get_text(0, sr - 1, sc - 1, er - 1, ec, {})
   lines[1] = prefix .. lines[1]
   lines[#lines] = lines[#lines] .. suffix
   vim.api.nvim_buf_set_text(0, sr - 1, sc - 1, er - 1, ec, lines)
+
   local end_row = sr - 1 + #lines - 1
   local end_col
   if #lines == 1 then
@@ -34,22 +55,17 @@ local function wrap_selection(prefix, suffix, cursor_from_end)
   vim.cmd('startinsert')
 end
 
--- Helper: wrap char under cursor, then append {>> comment <<}
+-- Helper: wrap char under cursor, then append {>> comment <<}. Only called from
+-- char_or_empty with a non-empty char (the empty-line case is handled inline).
 local function wrap_char_comment(prefix, suffix)
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))
   local line = vim.api.nvim_get_current_line()
   local char = line:sub(col + 1, col + 1)
   local before = line:sub(1, col)
-  if char == '' then
-    local inserted = prefix .. ' ' .. suffix .. '{>>  <<}'
-    vim.api.nvim_set_current_line(before .. inserted)
-    vim.api.nvim_win_set_cursor(0, { row, col + #inserted - #'<<}' - 1 })
-  else
-    local after = line:sub(col + 2)
-    local inserted = prefix .. char .. suffix .. '{>>  <<}'
-    vim.api.nvim_set_current_line(before .. inserted .. after)
-    vim.api.nvim_win_set_cursor(0, { row, col + #inserted - #'<<}' - 1 })
-  end
+  local after = line:sub(col + 2)
+  local inserted = prefix .. char .. suffix .. '{>>  <<}'
+  vim.api.nvim_set_current_line(before .. inserted .. after)
+  vim.api.nvim_win_set_cursor(0, { row, col + #inserted - #'<<}' - 1 })
   vim.cmd('startinsert')
 end
 
@@ -72,7 +88,9 @@ local function char_or_empty(prefix, suffix, comment)
   local char = line:sub(col + 1, col + 1)
   local before = line:sub(1, col)
   if char == '' then
-    local markers = prefix .. ' ' .. suffix
+    -- prefix already ends with a space and suffix begins with one, so
+    -- concatenating directly leaves a single space pair as the insertion site.
+    local markers = prefix .. suffix
     if comment then
       local inserted = markers .. '{>>  <<}'
       vim.api.nvim_set_current_line(before .. inserted)
